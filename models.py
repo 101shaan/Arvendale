@@ -44,7 +44,7 @@ class Item:
         # Reduce quantity after use
         self.quantity -= 1
         if self.quantity <= 0:
-            player.inventory.remove(self)
+            player.inventory.remove_item(self)
         
         return result
     

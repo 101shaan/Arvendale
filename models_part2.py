@@ -30,6 +30,7 @@ class Player:
         self.skills = []  # List of special abilities
         self.flags = {}  # Persistent flags for quest/story progress
         self.last_beacon = None  # Last rested beacon (checkpoint)
+        self.combat_log = []  # Add combat log for battle messages
     
     def _calculate_xp_required(self) -> int:
         """Calculate XP required for next level."""
@@ -181,7 +182,8 @@ class Player:
             "buffs": self.buffs.copy(),
             "skills": self.skills.copy(),
             "flags": self.flags.copy(),
-            "last_beacon": self.last_beacon.id if self.last_beacon else None
+            "last_beacon": self.last_beacon.id if self.last_beacon else None,
+            "combat_log": self.combat_log.copy()
         }
     
     @classmethod
@@ -219,6 +221,8 @@ class Player:
             from models import Inventory
             player.inventory = Inventory.from_dict(data["inventory"])
         
+        player.combat_log = data["combat_log"].copy()
+        
         return player
 
 class NPC:
@@ -246,95 +250,101 @@ class NPC:
         self.current_dialogue = "greeting"
         self.flags = {}  # NPC-specific flags
     
-    def talk(self, player, response: str = None) -> Tuple[str, Dict]:
-        """Handle conversation with the NPC."""
-        responses = {}
-        
-        if response and response in self.dialogue:
-            # Player selected a response option
-            response_data = self.dialogue[response]
-            
-            # Update NPC flags if needed
-            if "set_flag" in response_data:
-                flag, value = response_data["set_flag"]
-                self.flags[flag] = value
-            
-            # Update player flags if needed
-            if "set_player_flag" in response_data:
-                flag, value = response_data["set_player_flag"]
-                player.flags[flag] = value
-            
-            # Handle quest starting
-            if "start_quest" in response_data and response_data["start_quest"] not in player.quest_log:
-                player.quest_log.append(response_data["start_quest"])
-                print_slow(f"Quest started: {response_data['start_quest']}")
-            
-            # Set next dialogue
-            self.current_dialogue = response_data.get("next", "greeting")
-            dialogue_text = response_data["text"]
-        else:
-            # Initial or default dialogue
-            if "condition" in self.dialogue.get(self.current_dialogue, {}):
-                # Check condition for conditional dialogue
-                condition = self.dialogue[self.current_dialogue]["condition"]
+    def talk(self, player, player_choice_id: str = None) -> Tuple[str, Dict]:
+        npc_utterance: str
+        options_for_player: Dict[str, str] = {}
+
+        if player_choice_id:  # Player made a choice
+            node_player_was_responding_to = self.dialogue.get(self.current_dialogue, {})  # Node that offered choices
+            if "responses" in node_player_was_responding_to and \
+               player_choice_id in node_player_was_responding_to["responses"]:
+                
+                data_for_chosen_option = node_player_was_responding_to["responses"][player_choice_id]
+                
+                # Perform actions from chosen option (flags, quests)
+                if "set_flag" in data_for_chosen_option:
+                    self.flags[data_for_chosen_option["set_flag"][0]] = data_for_chosen_option["set_flag"][1]
+                if "set_player_flag" in data_for_chosen_option:
+                    player.flags[data_for_chosen_option["set_player_flag"][0]] = data_for_chosen_option["set_player_flag"][1]
+                if "start_quest" in data_for_chosen_option and \
+                   data_for_chosen_option["start_quest"] not in player.quest_log and \
+                   data_for_chosen_option["start_quest"] not in player.completed_quests:
+                    # Try to get quest name for a friendlier message (assuming world is accessible or quest data is simple)
+                    # This part is tricky as NPC model doesn't directly know 'world'.
+                    # For simplicity, we'll stick to quest ID or assume quest data might have a 'name' if embedded.
+                    quest_id_to_start = data_for_chosen_option["start_quest"]
+                    player.quest_log.append(quest_id_to_start)
+                    # The actual quest name would ideally be retrieved via a world/quest_system reference
+                    print_slow(f"Quest started: {quest_id_to_start}")
+
+
+                # The NPC's text for THIS turn is the "text" field of the CHOSEN OPTION.
+                npc_utterance = data_for_chosen_option.get("text", f"{self.name} acknowledges your choice.")
+                
+                # The NEW dialogue state for the NPC is from the "next" field of the CHOSEN OPTION.
+                # If "next" is missing, current_dialogue remains the same.
+                self.current_dialogue = data_for_chosen_option.get("next", self.current_dialogue)
+            else:
+                # Invalid player choice for current node. NPC gets confused. State doesn't change.
+                current_node_text = self.dialogue.get(self.current_dialogue, {}).get("text", f"{self.name} is confused.")
+                npc_utterance = current_node_text
+        else:  # player_choice_id is None (initial call for a dialogue node)
+            current_node_data = self.dialogue.get(self.current_dialogue, {})
+            if "condition" in current_node_data:
+                condition = current_node_data["condition"]
+                branch = "failure"  # Default branch
                 if condition["type"] == "player_flag":
                     flag, value = condition["flag"], condition["value"]
-                    branch = "success" if player.flags.get(flag) == value else "failure"
-                    dialogue_text = self.dialogue[self.current_dialogue][branch]["text"]
-                    self.current_dialogue = self.dialogue[self.current_dialogue][branch].get("next", "greeting")
+                    if player.flags.get(flag) == value: branch = "success"
                 elif condition["type"] == "npc_flag":
                     flag, value = condition["flag"], condition["value"]
-                    branch = "success" if self.flags.get(flag) == value else "failure"
-                    dialogue_text = self.dialogue[self.current_dialogue][branch]["text"]
-                    self.current_dialogue = self.dialogue[self.current_dialogue][branch].get("next", "greeting")
+                    if self.flags.get(flag) == value: branch = "success"
                 elif condition["type"] == "quest_complete":
                     quest_id = condition["quest_id"]
-                    branch = "success" if quest_id in player.completed_quests else "failure"
-                    dialogue_text = self.dialogue[self.current_dialogue][branch]["text"]
-                    self.current_dialogue = self.dialogue[self.current_dialogue][branch].get("next", "greeting")
+                    if quest_id in player.completed_quests: branch = "success"
                 elif condition["type"] == "item":
                     item_id = condition["item_id"]
+                    # Ensure player.inventory exists before checking
                     has_item = player.inventory and player.inventory.get_item_by_id(item_id)
-                    branch = "success" if has_item else "failure"
-                    dialogue_text = self.dialogue[self.current_dialogue][branch]["text"]
-                    self.current_dialogue = self.dialogue[self.current_dialogue][branch].get("next", "greeting")
-                else:
-                    dialogue_text = self.dialogue.get(self.current_dialogue, {"text": "..."})["text"]
-            else:
-                dialogue_text = self.dialogue.get(self.current_dialogue, {"text": "..."})["text"]
-        
-        # Get response options for current dialogue
-        current_dialogue_data = self.dialogue.get(self.current_dialogue, {})
-        
-        if "responses" in current_dialogue_data:
-            # Filter responses based on conditions
-            for resp_id, resp_data in current_dialogue_data["responses"].items():
+                    if has_item: branch = "success"
+                
+                branch_data = current_node_data.get(branch, {})
+                npc_utterance = branch_data.get("text", "...")
+                self.current_dialogue = branch_data.get("next", self.current_dialogue)  # Update from conditional branch
+            else:  # No condition in current node
+                npc_utterance = current_node_data.get("text", "...")
+                # A non-conditional node's "next" should be handled by player choices, not auto-advance here.
+
+        # Fetch response options for the player for the (potentially updated) self.current_dialogue state.
+        options_node_data = self.dialogue.get(self.current_dialogue, {})
+        if "responses" in options_node_data:
+            for resp_id, resp_data in options_node_data["responses"].items():
+                display_this_response_option = True  # Default to true
                 if "condition" in resp_data:
                     condition = resp_data["condition"]
+                    display_this_response_option = False  # Default to not displaying if condition exists
                     if condition["type"] == "player_flag":
                         flag, value = condition["flag"], condition["value"]
-                        if player.flags.get(flag) == value:
-                            responses[resp_id] = resp_data["text"]
+                        if player.flags.get(flag) == value: display_this_response_option = True
                     elif condition["type"] == "npc_flag":
                         flag, value = condition["flag"], condition["value"]
-                        if self.flags.get(flag) == value:
-                            responses[resp_id] = resp_data["text"]
+                        if self.flags.get(flag) == value: display_this_response_option = True
                     elif condition["type"] == "quest_complete":
                         quest_id = condition["quest_id"]
-                        if quest_id in player.completed_quests:
-                            responses[resp_id] = resp_data["text"]
+                        if quest_id in player.completed_quests: display_this_response_option = True
                     elif condition["type"] == "item":
                         item_id = condition["item_id"]
-                        if player.inventory and player.inventory.get_item_by_id(item_id):
-                            responses[resp_id] = resp_data["text"]
-                else:
-                    responses[resp_id] = resp_data["text"]
+                        if player.inventory and player.inventory.get_item_by_id(item_id): display_this_response_option = True
+                
+                if display_this_response_option:
+                    options_for_player[resp_id] = resp_data["text"]
         
-        # Add farewell option if no responses
-        if not responses:
-            responses["farewell"] = "Farewell."
-        
-        return dialogue_text, responses
+        if not options_for_player:  # If no responses are available from the current node
+            # This ensures there's a way out if a dialogue node is a dead end.
+            # The game_engine.py also adds a general "End conversation" option.
+            options_for_player["farewell"] = "Farewell."
+
+        return npc_utterance, options_for_player
     
     def get_loot(self, world) -> List:
         """Generate loot drops when NPC is defeated."""

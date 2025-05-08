@@ -14,7 +14,9 @@ class CombatSystem:
         self.enemy_stance = "neutral"
         self.combo_counter = 0
         self.last_attack_time = 0
-        self.combat_log = []
+        # Initialize player's combat log if it's empty
+        if not hasattr(player, 'combat_log') or player.combat_log is None:
+            player.combat_log = []
     
     def player_attack(self) -> Tuple[int, bool, str]:
         """Handle player attack and return damage, critical flag, and message."""
@@ -146,6 +148,7 @@ class CombatSystem:
                 
                 if killed:
                     messages.append(f"You have defeated {self.enemy.name}!")
+                    self.player.combat_log.extend(messages)
                     return messages
         
         elif player_action == "special":
@@ -159,6 +162,7 @@ class CombatSystem:
                     
                     if killed:
                         messages.append(f"You have defeated {self.enemy.name}!")
+                        self.player.combat_log.extend(messages)
                         return messages
         
         elif player_action == "stance":
@@ -178,6 +182,7 @@ class CombatSystem:
             
             if success:
                 messages.append("You successfully flee from combat!")
+                self.player.combat_log.extend(messages)
                 return messages
             else:
                 messages.append("You fail to escape!")
@@ -196,6 +201,7 @@ class CombatSystem:
                     
                     if player_died:
                         messages.append("You have been defeated...")
+                        self.player.combat_log.extend(messages)
                         return messages
                 
                 elif ability["type"] == "heal":
@@ -215,9 +221,13 @@ class CombatSystem:
                 player_died = self.player.take_damage(damage)
                 if player_died:
                     messages.append("You have been defeated...")
+                    self.player.combat_log.extend(messages)
         
         # Update player buffs
         self.player.update_buffs()
+        
+        # Add messages to player's combat log 
+        self.player.combat_log.extend(messages)
         
         # Regenerate some stamina each turn
         stamina_regen = 5 + (self.player.dexterity // 5)
@@ -341,21 +351,134 @@ class UISystem:
     
     @staticmethod
     def draw_map_ui(player, world):
-        """Draw the world map UI."""
+        """Draw the world map UI with ASCII art visualization."""
         clear_screen()
         print(DIVIDER)
         print_centered("WORLD MAP")
         print(DIVIDER)
         
-        # Display region information
+        # Display compass and region information
         current_region = player.current_location.region if player.current_location else None
         
+        # Display compass
+        print("         N         ")
+        print("         ↑         ")
+        print("     NW  |  NE     ")
+        print("       \\ | /       ")
+        print("    W ←--+--→ E    ")
+        print("       / | \\       ")
+        print("     SW  |  SE     ")
+        print("         ↓         ")
+        print("         S         ")
+        print()
+                
         print(f"Current Location: {player.current_location.name if player.current_location else 'Unknown'}")
         print(f"Region: {current_region if current_region else 'Unknown'}")
         print()
         
-        # Show discovered locations by region
-        print("Discovered Locations:")
+        # Get all regions for the world map
+        all_regions = list(world.regions.keys()) if hasattr(world, 'regions') else []
+        
+        # Create a world map visualization
+        if all_regions:
+            # Map symbols
+            symbols = {
+                'player': '★',             # Current player position
+                'beacon': '🔥',            # Rest point (using fire emoji if terminal supports it)
+                'npc_friendly': '👤',      # Friendly NPC (using person emoji if terminal supports it)
+                'npc_hostile': '💀',       # Hostile NPC/enemy (using skull emoji if terminal supports it)
+                'discovered': '■',         # Discovered location
+                'unexplored': '□',         # Unexplored but known location
+                'hidden': '░',             # Hidden/locked area  
+                'boss': '👑',              # Boss area (using crown emoji if terminal supports it)
+                'shop': '💰',              # Shop/merchant area (using money bag emoji if terminal supports it)
+                'quest': '❗',             # Quest area (using exclamation emoji if terminal supports it)
+                'path': '━━━',             # Path between locations (horizontal)
+                'path_vertical': '┃',      # Path between locations (vertical)
+                'path_corner_tl': '┏',     # Path corner (top-left)
+                'path_corner_tr': '┓',     # Path corner (top-right)
+                'path_corner_bl': '┗',     # Path corner (bottom-left)
+                'path_corner_br': '┛',     # Path corner (bottom-right)
+                'path_t_down': '┳',        # T-junction (down)
+                'path_t_up': '┻',          # T-junction (up)
+                'path_t_right': '┣',       # T-junction (right)
+                'path_t_left': '┫',        # T-junction (left)
+                'path_cross': '╋',         # Crossroads
+            }
+            
+            # Fallback symbols for terminals without emoji support
+            fallback_symbols = {
+                'player': '*',
+                'beacon': 'B',
+                'npc_friendly': 'N',
+                'npc_hostile': 'E',
+                'discovered': '#',
+                'unexplored': 'O',
+                'hidden': '.',
+                'boss': '!',
+                'shop': '$',
+                'quest': '?',
+                'path': '---',
+                'path_vertical': '|',
+                'path_corner_tl': '+',
+                'path_corner_tr': '+',
+                'path_corner_bl': '+',
+                'path_corner_br': '+',
+                'path_t_down': '+',
+                'path_t_up': '+',
+                'path_t_right': '+',
+                'path_t_left': '+',
+                'path_cross': '+',
+            }
+            
+            # Check if world has predefined ASCII maps, otherwise dynamically generate them
+            has_region_maps = hasattr(world, 'region_maps') and world.region_maps
+            
+            # Display world map or region-specific map based on what the player has discovered
+            if current_region:
+                print("═══════════ REGION MAP ═══════════")
+                
+                # Check if this region has a predefined ASCII map
+                if has_region_maps and current_region in world.region_maps:
+                    region_map = world.region_maps[current_region]
+                    
+                    # Process the map to highlight current location and show/hide unexplored areas
+                    processed_map = []
+                    for line in region_map.split('\n'):
+                        processed_map.append(line)
+                    
+                    print('\n'.join(processed_map))
+                else:
+                    # Generate a simple grid map for the region
+                    UISystem._generate_region_grid_map(world, current_region, player, symbols, fallback_symbols)
+            
+            # Now show the overall world map with all regions
+            print("\n═══════════ WORLD MAP ═══════════")
+            
+            # If a custom full world map exists, use it
+            if has_region_maps and 'world' in world.region_maps:
+                world_map = world.region_maps['world']
+                # Process to highlight current region and show/hide unexplored regions
+                processed_map = []
+                for line in world_map.split('\n'):
+                    processed_map.append(line)
+                
+                print('\n'.join(processed_map))
+            else:
+                # Generate a simple overview map showing all regions
+                UISystem._generate_world_overview_map(world, player, all_regions, symbols, fallback_symbols)
+        
+        # Map legend
+        print("\n═══════════ MAP LEGEND ═══════════")
+        print(f"{symbols['player']} : Your Location      {symbols['beacon']} : Beacon/Rest Point")
+        print(f"{symbols['npc_friendly']} : Friendly NPC      {symbols['npc_hostile']} : Enemy/Hostile NPC")
+        print(f"{symbols['discovered']} : Discovered Area    {symbols['unexplored']} : Known but Unexplored")
+        print(f"{symbols['hidden']} : Hidden/Locked Area  {symbols['boss']} : Boss Area")
+        print(f"{symbols['shop']} : Shop/Merchant       {symbols['quest']} : Quest Available")
+        print(f"{symbols['path']} : Path/Road")
+        
+        # Display discovered locations list by region for reference
+        print("\n═══════════ DISCOVERED LOCATIONS ═══════════")
         
         regions_with_discoveries = {}
         for location in player.discovered_locations:
@@ -368,13 +491,228 @@ class UISystem:
             print(f"\n{region}:")
             for location in locations:
                 current_marker = "* " if location == player.current_location else "  "
-                beacon_marker = "[Beacon] " if location.is_beacon else ""
-                print(f"{current_marker}{location.name} {beacon_marker}")
+                location_type = ""
+                if location.is_beacon:
+                    location_type += "[Beacon] "
+                if location.is_shop:
+                    location_type += "[Shop] "
+                if location.is_boss_area:
+                    location_type += "[Boss] "
+                if location.npcs:
+                    location_type += f"[NPCs: {len(location.npcs)}] "
+                
+                print(f"{current_marker}{location.name} {location_type}")
+    
+    @staticmethod
+    def _generate_region_grid_map(world, region_name, player, symbols, fallback_symbols):
+        """Generate a grid-based ASCII map for a specific region."""
+        # Get all locations in this region
+        region_locations = world.regions.get(region_name, [])
+        if not region_locations:
+            print("[No map data available for this region]")
+            return
         
-        # Display ASCII map if available for current region
-        if current_region and hasattr(world, 'region_maps') and current_region in world.region_maps:
-            print("\nRegion Map:")
-            print(world.region_maps[current_region])
+        # Create a simple grid representation
+        # For simplicity, we'll create a 10x10 grid
+        grid_size = 10
+        grid = [[' ' for _ in range(grid_size)] for _ in range(grid_size)]
+        
+        # Place locations on the grid - this is simplified
+        # In a real implementation, you'd want to use the actual spatial relationships
+        for i, location in enumerate(region_locations):
+            row = i // grid_size
+            col = i % grid_size
+            
+            if row < grid_size and col < grid_size:
+                # Choose symbol based on location type and discovery status
+                symbol = symbols['hidden']  # Default to hidden
+                
+                if location in player.discovered_locations:
+                    if location == player.current_location:
+                        symbol = symbols['player']
+                    elif location.is_beacon:
+                        symbol = symbols['beacon']
+                    elif location.is_boss_area:
+                        symbol = symbols['boss']
+                    elif location.is_shop:
+                        symbol = symbols['shop']
+                    elif location.npcs:
+                        has_quest_giver = any(world.get_npc_by_id(npc_id) and 
+                                              world.get_npc_by_id(npc_id).quest_giver 
+                                              for npc_id in location.npcs)
+                        if has_quest_giver:
+                            symbol = symbols['quest']
+                        else:
+                            symbol = symbols['npc_friendly']
+                    else:
+                        symbol = symbols['discovered']
+                else:
+                    # Check if it's a known but unexplored location
+                    is_connected_to_discovered = False
+                    for discovered_loc in player.discovered_locations:
+                        if location.id in discovered_loc.connections.values():
+                            is_connected_to_discovered = True
+                            break
+                    
+                    if is_connected_to_discovered:
+                        symbol = symbols['unexplored']
+                    else:
+                        symbol = ' '  # Completely hidden
+                
+                grid[row][col] = symbol
+        
+        # Draw paths between connected locations - simplified for the grid layout
+        for location in region_locations:
+            if location in player.discovered_locations:
+                for direction, connected_loc_id in location.connections.items():
+                    connected_loc = world.get_location_by_id(connected_loc_id)
+                    if connected_loc in region_locations and connected_loc in player.discovered_locations:
+                        # Find grid positions - this is simplified
+                        loc_idx = region_locations.index(location)
+                        loc_row, loc_col = loc_idx // grid_size, loc_idx % grid_size
+                        
+                        conn_idx = region_locations.index(connected_loc)
+                        conn_row, conn_col = conn_idx // grid_size, conn_idx % grid_size
+                        
+                        # Draw path if within grid bounds
+                        if (loc_row < grid_size and loc_col < grid_size and 
+                            conn_row < grid_size and conn_col < grid_size):
+                            # Simplified path drawing - just mark middle cells with path symbol
+                            if loc_row == conn_row:  # Same row, horizontal path
+                                for c in range(min(loc_col, conn_col) + 1, max(loc_col, conn_col)):
+                                    if grid[loc_row][c] == ' ':
+                                        grid[loc_row][c] = symbols['path']
+                            elif loc_col == conn_col:  # Same column, vertical path
+                                for r in range(min(loc_row, conn_row) + 1, max(loc_row, conn_row)):
+                                    if grid[r][loc_col] == ' ':
+                                        grid[r][loc_col] = symbols['path_vertical']
+        
+        # Print the grid
+        for row in grid:
+            print(''.join(cell.ljust(3) for cell in row))
+    
+    @staticmethod
+    def _generate_world_overview_map(world, player, regions, symbols, fallback_symbols):
+        """Generate an overview map of the world showing all regions."""
+        if not regions:
+            print("[No world map data available]")
+            return
+        
+        # Create a simple representation of regions
+        # For simplicity, we'll arrange regions in a circular pattern
+        num_regions = len(regions)
+        
+        # Center text for the map
+        center_text = "ARDENVALE"
+        
+        # Define a circular arrangement
+        radius = 10
+        center_x, center_y = radius + 5, radius
+        
+        # Create a grid for the world map
+        grid_width = (radius + 5) * 2
+        grid_height = radius * 2 + 1
+        grid = [[' ' for _ in range(grid_width)] for _ in range(grid_height)]
+        
+        # Place the center text
+        center_start = center_x - len(center_text) // 2
+        for i, char in enumerate(center_text):
+            if 0 <= center_start + i < grid_width:
+                grid[center_y][center_start + i] = char
+        
+        # Place regions in a circular arrangement
+        for i, region in enumerate(regions):
+            angle = 2 * 3.14159 * i / num_regions
+            x = int(center_x + radius * 0.8 * 2 * (i % 2) * (0.5 - (i // 2) % 2))
+            y = int(center_y + radius * 0.8 * ((i+1) % 2) * (1 - 2 * ((i // 3) % 2)))
+            
+            # Ensure coordinates are within grid bounds
+            x = max(0, min(x, grid_width - 1))
+            y = max(0, min(y, grid_height - 1))
+            
+            # Mark the region on the grid
+            region_char = symbols['hidden']
+            if region in world.regions:
+                # Check if any location in this region is discovered
+                region_locations = world.regions[region]
+                any_discovered = any(loc in player.discovered_locations for loc in region_locations)
+                
+                if any_discovered:
+                    if region == player.current_location.region:
+                        region_char = symbols['player']  # Current region
+                    else:
+                        region_char = symbols['discovered']  # Discovered region
+                else:
+                    # Check if any location is connected to a discovered location
+                    is_connected = False
+                    for loc in region_locations:
+                        for discovered_loc in player.discovered_locations:
+                            if loc.id in discovered_loc.connections.values():
+                                is_connected = True
+                                break
+                        if is_connected:
+                            break
+                    
+                    if is_connected:
+                        region_char = symbols['unexplored']  # Known but unexplored
+            
+            grid[y][x] = region_char
+            
+            # Add region name if discovered
+            if region_char in [symbols['player'], symbols['discovered'], symbols['unexplored']]:
+                name_start = x - len(region) // 2
+                for j, char in enumerate(region):
+                    name_x = name_start + j
+                    if 0 <= name_x < grid_width and y+1 < grid_height:
+                        grid[y+1][name_x] = char
+        
+        # Draw connections between regions - simplified
+        for region in regions:
+            if region in world.regions and any(loc in player.discovered_locations for loc in world.regions[region]):
+                # Find connected regions through locations
+                connected_regions = set()
+                for loc in world.regions[region]:
+                    if loc in player.discovered_locations:
+                        for _, connected_loc_id in loc.connections.items():
+                            connected_loc = world.get_location_by_id(connected_loc_id)
+                            if connected_loc and connected_loc.region != region:
+                                connected_regions.add(connected_loc.region)
+                
+                # Draw paths to connected regions if they're discovered
+                for connected_region in connected_regions:
+                    if connected_region in regions and any(loc in player.discovered_locations for loc in world.regions[connected_region]):
+                        # Find grid positions
+                        region_idx = regions.index(region)
+                        conn_idx = regions.index(connected_region)
+                        
+                        region_angle = 2 * 3.14159 * region_idx / num_regions
+                        conn_angle = 2 * 3.14159 * conn_idx / num_regions
+                        
+                        region_x = int(center_x + radius * 0.8 * 2 * (region_idx % 2) * (0.5 - (region_idx // 2) % 2))
+                        region_y = int(center_y + radius * 0.8 * ((region_idx+1) % 2) * (1 - 2 * ((region_idx // 3) % 2)))
+                        
+                        conn_x = int(center_x + radius * 0.8 * 2 * (conn_idx % 2) * (0.5 - (conn_idx // 2) % 2))
+                        conn_y = int(center_y + radius * 0.8 * ((conn_idx+1) % 2) * (1 - 2 * ((conn_idx // 3) % 2)))
+                        
+                        # Ensure coordinates are within grid bounds
+                        region_x = max(0, min(region_x, grid_width - 1))
+                        region_y = max(0, min(region_y, grid_height - 1))
+                        conn_x = max(0, min(conn_x, grid_width - 1))
+                        conn_y = max(0, min(conn_y, grid_height - 1))
+                        
+                        # Simple path - just draw a line character halfway between
+                        mid_x = (region_x + conn_x) // 2
+                        mid_y = (region_y + conn_y) // 2
+                        
+                        if 0 <= mid_x < grid_width and 0 <= mid_y < grid_height:
+                            if mid_x == region_x or mid_x == conn_x:  # Vertical path
+                                grid[mid_y][mid_x] = symbols['path_vertical']
+                            else:  # Horizontal or diagonal path
+                                grid[mid_y][mid_x] = symbols['path'][0]
+        
+        # Print the grid
+        for row in grid:
+            print(''.join(cell for cell in row))
     
     @staticmethod
     def draw_location_ui(location):

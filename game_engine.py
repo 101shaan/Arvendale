@@ -10,7 +10,7 @@ from models import Item, Weapon, Armor, Consumable, Inventory
 from models_part2 import Player, NPC, Location
 from models_part3 import World, Quest
 from game_systems import CombatSystem, UISystem, QuestSystem
-from game_data import initialize_game_data, create_player
+from game_data import initialize_game_data, create_player, create_item_from_dict
 
 class GameEngine:
     def __init__(self):
@@ -446,15 +446,24 @@ class GameEngine:
             try:
                 choice_idx = int(choice) - 1
                 if 0 <= choice_idx < len(responses):
+                    # Get the response ID from the responses dictionary
                     response = list(responses.keys())[choice_idx]
                     
                     # Update quest progress for talking
                     self.quest_system.update_quest_progress(
                         self.player, self.world, "talk", npc.id)
+                    
+                    # If this is a shop option, handle it
+                    if response == "shop" and npc.merchant:
+                        self.show_merchant_ui(npc)
+                        response = None  # Reset response to avoid repeating shop action
+                    
                 elif choice_idx == len(responses):
                     talking = False
             except (ValueError, IndexError):
-                pass
+                # Handle non-numeric input by displaying a hint
+                print_slow("Please select a numbered option from the list above.")
+                time.sleep(1.5)
     
     def take_item(self, item_name: str):
         """Take an item from the current location."""
@@ -833,6 +842,123 @@ class GameEngine:
         self.player.current_location.active_enemies.remove(enemy)
         
         input("Press Enter to continue...")
+
+    def show_merchant_ui(self, npc):
+        """Display merchant UI for buying and selling items."""
+        if not npc.merchant or not hasattr(npc, 'inventory') or not npc.inventory:
+            print_slow(f"{npc.name} has nothing to sell.")
+            time.sleep(1.5)
+            return
+        
+        shopping = True
+        
+        while shopping and self.running:
+            clear_screen()
+            print(DIVIDER)
+            print_centered(f"{npc.name}'s Shop")
+            print(DIVIDER)
+            
+            print(f"Your Essence: {self.player.essence}")
+            print()
+            
+            print("Available Items:")
+            for i, (item_id, item_data) in enumerate(npc.inventory.items(), 1):
+                print(f"{i}. {item_data['name']} - {item_data['price']} essence")
+                print(f"   {item_data['description']}")
+            
+            print(DIVIDER)
+            print("Options:")
+            print("1. Buy an item")
+            print("2. Sell an item")
+            print("3. Exit shop")
+            print(DIVIDER)
+            
+            choice = input("> ").strip()
+            
+            if choice == "1":
+                # Buy an item
+                print("Enter the number of the item you wish to buy:")
+                item_choice = input("> ").strip()
+                
+                try:
+                    item_idx = int(item_choice) - 1
+                    if 0 <= item_idx < len(npc.inventory):
+                        item_id = list(npc.inventory.keys())[item_idx]
+                        item_data = npc.inventory[item_id]
+                        
+                        # Check if player has enough essence
+                        if self.player.essence >= item_data['price']:
+                            # Get or create the item
+                            item = self.world.get_item_by_id(item_id)
+                            if not item:
+                                # Create item based on type
+                                item = create_item_from_dict(item_data)
+                            
+                            # Add to inventory
+                            if self.player.inventory.add_item(item):
+                                self.player.essence -= item_data['price']
+                                print_slow(f"You purchased {item_data['name']} for {item_data['price']} essence.")
+                                time.sleep(1.5)
+                            else:
+                                print_slow("Your inventory is full.")
+                                time.sleep(1.5)
+                        else:
+                            print_slow("You don't have enough essence.")
+                            time.sleep(1.5)
+                except (ValueError, IndexError):
+                    print_slow("Invalid choice.")
+                    time.sleep(1)
+            
+            elif choice == "2":
+                # Sell an item
+                if not self.player.inventory.items:
+                    print_slow("You have no items to sell.")
+                    time.sleep(1.5)
+                    continue
+                
+                # Show player inventory
+                print("Your items:")
+                sellable_items = [item for item in self.player.inventory.items if not item.equipped]
+                
+                if not sellable_items:
+                    print_slow("You have no items to sell. Unequip items first.")
+                    time.sleep(1.5)
+                    continue
+                
+                for i, item in enumerate(sellable_items, 1):
+                    sell_price = int(item.value * 0.7)  # 70% of item value
+                    print(f"{i}. {item.name} - {sell_price} essence")
+                
+                print("\nEnter the number of the item you wish to sell (0 to cancel):")
+                sell_choice = input("> ").strip()
+                
+                if sell_choice == "0":
+                    continue
+                
+                try:
+                    sell_idx = int(sell_choice) - 1
+                    if 0 <= sell_idx < len(sellable_items):
+                        item = sellable_items[sell_idx]
+                        sell_price = int(item.value * 0.7)
+                        
+                        print_slow(f"Are you sure you want to sell {item.name} for {sell_price} essence? (y/n)")
+                        confirm = input("> ").strip().lower()
+                        
+                        if confirm in ["y", "yes"]:
+                            self.player.inventory.remove_item(item)
+                            self.player.essence += sell_price
+                            print_slow(f"You sold {item.name} for {sell_price} essence.")
+                            time.sleep(1.5)
+                except (ValueError, IndexError):
+                    print_slow("Invalid choice.")
+                    time.sleep(1)
+            
+            elif choice == "3":
+                shopping = False
+            
+            else:
+                print_slow("Invalid choice.")
+                time.sleep(1)
 
 # Run the game if executed directly
 if __name__ == "__main__":

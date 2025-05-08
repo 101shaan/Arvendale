@@ -99,6 +99,7 @@ class World:
         self.regions = {}
         self.time_passed = 0  # Game time tracker (in-game days)
         self.global_flags = {}  # World state flags
+        self.region_maps = {}  # Dictionary to store ASCII art maps for each region
     
     def add_location(self, location):
         """Add a location to the world."""
@@ -200,7 +201,8 @@ class World:
             "items": {item_id: item.to_dict() for item_id, item in self.items.items()},
             "quests": {quest_id: quest.to_dict() for quest_id, quest in self.quests.items()},
             "time_passed": self.time_passed,
-            "global_flags": self.global_flags.copy()
+            "global_flags": self.global_flags.copy(),
+            "region_maps": self.region_maps.copy()
         }
     
     @classmethod
@@ -247,5 +249,9 @@ class World:
         
         world.time_passed = data["time_passed"]
         world.global_flags = data["global_flags"].copy()
+        
+        # Restore region maps if they exist
+        if "region_maps" in data:
+            world.region_maps = data["region_maps"].copy()
         
         return world 
