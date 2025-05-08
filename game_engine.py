@@ -176,7 +176,7 @@ class GameEngine:
         print_centered("ARDENVALE")
         print_centered("A Dark Fantasy RPG")
         print()
-        print_centered("Created by Cursor Assistant")
+        print_centered("Created by Shaan")
         print()
         print_centered("Inspired by Dark Souls and The Lord of the Rings")
         print()
