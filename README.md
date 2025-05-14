@@ -25,6 +25,11 @@ The game is organized into several modules for maintainability:
 
 ## How to Play
 
+Clone this repository with -
+'''
+git clone https://github.com/101shaan/Arvendale
+'''
+
 1. Run the game by executing:
    ```
    python main.py
