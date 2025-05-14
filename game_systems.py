@@ -93,21 +93,34 @@ class CombatSystem:
     def special_move(self, move_type: str) -> Tuple[int, str]:
         """Execute a special combat move."""
         if move_type == "parry":
-            # Parry requires a quick-time event
-            print_slow("Prepare to parry! Press SPACE when the enemy attacks...")
-            result = input_with_timeout("", timeout=1.5)
+            # Parry requires waiting for enemy attack and timing the counter
+            print_slow("Prepare to parry! Watch carefully and press SPACE immediately after the enemy attacks...")
             
+            # Enemy will attack at a random time between 1-5 seconds
+            attack_delay = random.uniform(1.0, 5.0)
+            time.sleep(attack_delay)
+            
+            print_slow(f"{self.enemy.name} attacks!", delay=0.01)  # Very quick message
+            
+            # Player has 0.5 seconds to parry
+            result = input_with_timeout("", timeout=0.5)
             success = result.strip().lower() == " "
+            
+            if not self.player.use_stamina(15):
+                return 0, "You don't have enough stamina to parry!"
+            
             if success:
-                # Successful parry stuns enemy and allows counter
-                damage = int(self.player.get_attack_damage() * 1.5)
-                self.player.use_stamina(15)
-                return damage, "Perfect parry! You counter-attack for heavy damage!"
+                # Successful parry deflects damage back to enemy
+                damage = self.enemy.attack  # Use enemy's own attack value
+                actual_damage, killed = self.enemy.take_damage(damage)
+                
+                return damage, f"Perfect parry! You deflect {self.enemy.name}'s attack back for {actual_damage} damage!"
             else:
-                # Failed parry results in taking damage
-                damage = int(self.enemy.attack * 0.5)
+                # Failed parry results in taking increased damage
+                damage = int(self.enemy.attack * 1.5)  # 1.5x damage when parry fails
                 self.player.take_damage(damage)
-                return 0, f"You miss the parry timing and take {damage} damage!"
+                
+                return 0, f"You miss the parry timing and take {damage} increased damage!"
         
         elif move_type == "charge":
             # Charged attack: high damage but leaves you vulnerable
@@ -136,6 +149,7 @@ class CombatSystem:
     def process_turn(self, player_action: str, player_target: Any = None) -> List[str]:
         """Process a full combat turn and return messages."""
         messages = []
+        successful_parry = False  # Flag to track successful parries
         
         # Process player action
         if player_action == "attack":
@@ -156,9 +170,15 @@ class CombatSystem:
                 damage, message = self.special_move(player_target)
                 messages.append(message)
                 
+                # Check if this was a successful parry
+                if player_target == "parry" and damage > 0:
+                    successful_parry = True
+                
                 if damage > 0:
                     actual_damage, killed = self.enemy.take_damage(damage)
-                    messages.append(f"You deal {actual_damage} damage to {self.enemy.name}.")
+                    # For parry, the damage is already reported in the message
+                    if player_target != "parry":
+                        messages.append(f"You deal {actual_damage} damage to {self.enemy.name}.")
                     
                     if killed:
                         messages.append(f"You have defeated {self.enemy.name}!")
@@ -187,8 +207,8 @@ class CombatSystem:
             else:
                 messages.append("You fail to escape!")
         
-        # Enemy turn (only if not defeated)
-        if self.enemy.health > 0:
+        # Enemy turn (only if not defeated and no successful parry)
+        if self.enemy.health > 0 and not successful_parry:
             # 70% chance for a normal attack, 30% for special ability if available
             if self.enemy.special_abilities and random.random() < 0.3:
                 # Use a random special ability
@@ -222,6 +242,8 @@ class CombatSystem:
                 if player_died:
                     messages.append("You have been defeated...")
                     self.player.combat_log.extend(messages)
+        elif successful_parry:
+            messages.append("Your perfect parry gives you another turn!")
         
         # Update player buffs
         self.player.update_buffs()
@@ -374,6 +396,15 @@ class UISystem:
                 
         print(f"Current Location: {player.current_location.name if player.current_location else 'Unknown'}")
         print(f"Region: {current_region if current_region else 'Unknown'}")
+        
+        # Show available exits from current location
+        if player.current_location and player.current_location.connections:
+            exits = []
+            for direction, location_id in player.current_location.connections.items():
+                destination = world.get_location_by_id(location_id)
+                exits.append(f"{direction.upper()}: {destination.name if destination else 'Unknown'}")
+            
+            print("\nExits: " + ", ".join(exits))
         print()
         
         # Get all regions for the world map
@@ -381,35 +412,50 @@ class UISystem:
         
         # Create a world map visualization
         if all_regions:
-            # Map symbols
+            # Map symbols - use emojis where appropriate
             symbols = {
                 'player': '★',             # Current player position
-                'beacon': '🔥',            # Rest point (using fire emoji if terminal supports it)
-                'npc_friendly': '👤',      # Friendly NPC (using person emoji if terminal supports it)
-                'npc_hostile': '💀',       # Hostile NPC/enemy (using skull emoji if terminal supports it)
+                'beacon_unlocked': '🔥',   # Unlocked beacon (can rest)
+                'beacon_protected': '🛡️',   # Protected beacon (needs clearing)
+                'npc_friendly': '👤',      # Friendly NPC
+                'npc_hostile': '💀',       # Hostile NPC/enemy
                 'discovered': '■',         # Discovered location
                 'unexplored': '□',         # Unexplored but known location
                 'hidden': '░',             # Hidden/locked area  
-                'boss': '👑',              # Boss area (using crown emoji if terminal supports it)
-                'shop': '💰',              # Shop/merchant area (using money bag emoji if terminal supports it)
-                'quest': '❗',             # Quest area (using exclamation emoji if terminal supports it)
-                'path': '━━━',             # Path between locations (horizontal)
-                'path_vertical': '┃',      # Path between locations (vertical)
-                'path_corner_tl': '┏',     # Path corner (top-left)
-                'path_corner_tr': '┓',     # Path corner (top-right)
-                'path_corner_bl': '┗',     # Path corner (bottom-left)
-                'path_corner_br': '┛',     # Path corner (bottom-right)
-                'path_t_down': '┳',        # T-junction (down)
-                'path_t_up': '┻',          # T-junction (up)
-                'path_t_right': '┣',       # T-junction (right)
-                'path_t_left': '┫',        # T-junction (left)
-                'path_cross': '╋',         # Crossroads
+                'boss': '👑',              # Boss area
+                'shop': '💰',              # Shop/merchant area
+                'quest': '❗',             # Quest area
+                'path': '───',             # Path between locations (horizontal)
+                'path_vertical': '│',      # Path between locations (vertical)
+                'path_corner_tl': '┌',     # Path corner (top-left)
+                'path_corner_tr': '┐',     # Path corner (top-right)
+                'path_corner_bl': '└',     # Path corner (bottom-left)
+                'path_corner_br': '┘',     # Path corner (bottom-right)
+                'path_t_down': '┬',        # T-junction (down)
+                'path_t_up': '┴',          # T-junction (up)
+                'path_t_right': '├',       # T-junction (right)
+                'path_t_left': '┤',        # T-junction (left)
+                'path_cross': '┼',         # Crossroads
+                'locked': '🔒',            # Locked location
+                'danger': '⚠️',            # Dangerous area
+                'item': '📦',              # Item location
+                'water': '~~~',            # Water/river
+                'bridge': '═╬═',           # Bridge
+                'fog': '░░░',              # Fog of war/unexplored territory
+                'viewpoint': '👁️',         # Viewpoint/lookout
+                'portal': '⭕',            # Portal/teleporter
+                'cave': '◓',               # Cave entrance
+                'ruins': '𐄳',              # Ancient ruins
+                'castle': '🏰',            # Castle
+                'current_region': '*',     # Current region indicator
+                'last_beacon': '🏠',       # Last rested beacon (home)
             }
             
-            # Fallback symbols for terminals without emoji support
+            # Fallback symbols for terminals that may not support full Unicode
             fallback_symbols = {
                 'player': '*',
-                'beacon': 'B',
+                'beacon_unlocked': 'B',
+                'beacon_protected': 'P',
                 'npc_friendly': 'N',
                 'npc_hostile': 'E',
                 'discovered': '#',
@@ -429,6 +475,19 @@ class UISystem:
                 'path_t_right': '+',
                 'path_t_left': '+',
                 'path_cross': '+',
+                'locked': 'L',
+                'danger': '!',
+                'item': 'I',
+                'water': '~~~',
+                'bridge': '=+=',
+                'fog': '...',
+                'viewpoint': 'V',
+                'portal': 'O',
+                'cave': 'C',
+                'ruins': 'R',
+                'castle': 'K',
+                'current_region': '*',
+                'last_beacon': 'H',
             }
             
             # Check if world has predefined ASCII maps, otherwise dynamically generate them
@@ -445,9 +504,66 @@ class UISystem:
                     # Process the map to highlight current location and show/hide unexplored areas
                     processed_map = []
                     for line in region_map.split('\n'):
+                        # Highlight player's current location
+                        for location in player.discovered_locations:
+                            if location.region == current_region:
+                                if location == player.current_location and location.name in line:
+                                    line = line.replace('□', symbols['player'])
+                                elif location.is_beacon and location.name in line:
+                                    # Use different beacon symbols based on status
+                                    if hasattr(location, 'beacon_status'):
+                                        if location.beacon_status == "unlocked":
+                                            # Distinguish last rested beacon
+                                            if player.last_beacon == location:
+                                                line = line.replace('□', symbols['last_beacon'])
+                                            else:
+                                                line = line.replace('□', symbols['beacon_unlocked'])
+                                        elif location.beacon_status == "protected":
+                                            line = line.replace('□', symbols['beacon_protected'])
+                                        else:
+                                            # Default beacon (should be protected but just in case)
+                                            line = line.replace('□', symbols['beacon_protected'])
+                                    else:
+                                        # Legacy beacon handling (should be protected)
+                                        line = line.replace('□', symbols['beacon_protected'])
+                                elif location.is_boss_area and location.name in line:
+                                    line = line.replace('□', symbols['boss'])
+                                elif location.is_shop and location.name in line:
+                                    line = line.replace('□', symbols['shop'])
+                                elif "castle" in location.name.lower() and location.name in line:
+                                    line = line.replace('□', symbols['castle'])
+                                elif "cave" in location.name.lower() and location.name in line:
+                                    line = line.replace('□', symbols['cave'])
+                                
+                                # Add NPC indicators
+                                if location.npcs and location.name in line:
+                                    has_quest_giver = False
+                                    has_merchant = False
+                                    for npc_id in location.npcs:
+                                        npc = world.get_npc_by_id(npc_id)
+                                        if npc and npc.quest_giver:
+                                            has_quest_giver = True
+                                        if npc and npc.merchant:
+                                            has_merchant = True
+                                    
+                                    if has_quest_giver and '□' in line:
+                                        line = line.replace('□', symbols['quest'])
+                                    elif has_merchant and '□' in line:
+                                        line = line.replace('□', symbols['shop'])
+                                    elif '□' in line:
+                                        line = line.replace('□', symbols['npc_friendly'])
+                                
+                                # Show if location has items
+                                if location.items and location.name in line and '□' in line:
+                                    line = line.replace('□', symbols['item'])
+                        
                         processed_map.append(line)
                     
-                    print('\n'.join(processed_map))
+                    # Print the map with consistent alignment
+                    for line in processed_map:
+                        if line.strip():  # Only print non-empty lines
+                            # Handle emoji width by padding spaces appropriately
+                            print(line)
                 else:
                     # Generate a simple grid map for the region
                     UISystem._generate_region_grid_map(world, current_region, player, symbols, fallback_symbols)
@@ -461,21 +577,57 @@ class UISystem:
                 # Process to highlight current region and show/hide unexplored regions
                 processed_map = []
                 for line in world_map.split('\n'):
+                    # Highlight player's current region
+                    if current_region and current_region.upper() in line:
+                        line = line + " " + symbols['current_region']
+                    
+                    # Replace generic location symbols with appropriate icons
+                    for location in player.discovered_locations:
+                        if location.name in line:
+                            if location == player.current_location and '□' in line:
+                                line = line.replace('□', symbols['player'])
+                            elif location.is_beacon and '□' in line:
+                                if hasattr(location, 'beacon_status') and location.beacon_status == "unlocked":
+                                    # Show last rested beacon differently
+                                    if player.last_beacon == location:
+                                        line = line.replace('□', symbols['last_beacon'])
+                                    else:
+                                        line = line.replace('□', symbols['beacon_unlocked'])
+                                else:
+                                    line = line.replace('□', symbols['beacon_protected'])
+                            elif location.is_boss_area and '□' in line:
+                                line = line.replace('□', symbols['boss'])
+                            elif location.is_shop and '□' in line:
+                                line = line.replace('□', symbols['shop'])
+                    
+                    # Check for connections to unexplored areas
+                    if player.current_location:
+                        for dir, loc_id in player.current_location.connections.items():
+                            dest = world.get_location_by_id(loc_id)
+                            if dest and dest.name in line and dest not in player.discovered_locations:
+                                line = line.replace('□', symbols['unexplored'])
+                    
                     processed_map.append(line)
                 
-                print('\n'.join(processed_map))
+                # Print the map with consistent alignment
+                for line in processed_map:
+                    if line.strip():  # Only print non-empty lines
+                        print(line)
             else:
                 # Generate a simple overview map showing all regions
                 UISystem._generate_world_overview_map(world, player, all_regions, symbols, fallback_symbols)
         
-        # Map legend
+        # Map legend - expanded with new symbols
         print("\n═══════════ MAP LEGEND ═══════════")
-        print(f"{symbols['player']} : Your Location      {symbols['beacon']} : Beacon/Rest Point")
+        print(f"{symbols['player']} : Your Location      {symbols['beacon_unlocked']} : Unlocked Beacon")
+        print(f"{symbols['beacon_protected']} : Protected Beacon   {symbols['last_beacon']} : Last Rested Beacon")
         print(f"{symbols['npc_friendly']} : Friendly NPC      {symbols['npc_hostile']} : Enemy/Hostile NPC")
         print(f"{symbols['discovered']} : Discovered Area    {symbols['unexplored']} : Known but Unexplored")
         print(f"{symbols['hidden']} : Hidden/Locked Area  {symbols['boss']} : Boss Area")
         print(f"{symbols['shop']} : Shop/Merchant       {symbols['quest']} : Quest Available")
-        print(f"{symbols['path']} : Path/Road")
+        print(f"{symbols['item']} : Items Available     {symbols['locked']} : Requires Key/Item")
+        print(f"{symbols['danger']} : Dangerous Area      {symbols['castle']} : Castle/Fortress")
+        print(f"{symbols['cave']} : Cave/Dungeon        {symbols['ruins']} : Ruins/Ancient Site")
         
         # Display discovered locations list by region for reference
         print("\n═══════════ DISCOVERED LOCATIONS ═══════════")
@@ -487,21 +639,70 @@ class UISystem:
                 regions_with_discoveries[region] = []
             regions_with_discoveries[region].append(location)
         
-        for region, locations in regions_with_discoveries.items():
+        for region, locations in sorted(regions_with_discoveries.items()):
             print(f"\n{region}:")
             for location in locations:
-                current_marker = "* " if location == player.current_location else "  "
-                location_type = ""
-                if location.is_beacon:
-                    location_type += "[Beacon] "
-                if location.is_shop:
-                    location_type += "[Shop] "
-                if location.is_boss_area:
-                    location_type += "[Boss] "
-                if location.npcs:
-                    location_type += f"[NPCs: {len(location.npcs)}] "
+                # Mark current location with a star
+                current_marker = symbols['player'] + " " if location == player.current_location else "  "
                 
-                print(f"{current_marker}{location.name} {location_type}")
+                # Build a detailed location entry
+                location_details = []
+                
+                # Add location type markers
+                if location.is_beacon:
+                    if hasattr(location, 'beacon_status') and location.beacon_status == "unlocked":
+                        if player.last_beacon == location:
+                            location_details.append(f"[{symbols['last_beacon']} Home Beacon]")
+                        else:
+                            location_details.append(f"[{symbols['beacon_unlocked']} Unlocked Beacon]")
+                    else:
+                        location_details.append(f"[{symbols['beacon_protected']} Protected Beacon]")
+                if location.is_shop:
+                    location_details.append(f"[{symbols['shop']} Shop]")
+                if location.is_boss_area:
+                    location_details.append(f"[{symbols['boss']} Boss]")
+                
+                # Add NPC information
+                npc_info = []
+                hostile_count = 0
+                friendly_count = 0
+                quest_available = False
+                
+                for npc_id in location.npcs:
+                    npc = world.get_npc_by_id(npc_id)
+                    if npc:
+                        if npc.friendly:
+                            friendly_count += 1
+                            if npc.quest_giver:
+                                quest_available = True
+                        else:
+                            hostile_count += 1
+                
+                if friendly_count > 0:
+                    npc_info.append(f"{symbols['npc_friendly']}: {friendly_count}")
+                if hostile_count > 0:
+                    npc_info.append(f"{symbols['npc_hostile']}: {hostile_count}")
+                if quest_available:
+                    npc_info.append(f"{symbols['quest']}")
+                
+                if npc_info:
+                    location_details.append(f"[NPCs: {', '.join(npc_info)}]")
+                
+                # Add item information
+                if location.items:
+                    location_details.append(f"[{symbols['item']} Items: {len(location.items)}]")
+                
+                # Add exit directions
+                if location.connections:
+                    exits = ', '.join(direction.upper() for direction in location.connections.keys())
+                    location_details.append(f"[Exits: {exits}]")
+                
+                # Build the full location entry
+                location_entry = f"{current_marker}{location.name}"
+                if location_details:
+                    location_entry += " " + " ".join(location_details)
+                
+                print(location_entry)
     
     @staticmethod
     def _generate_region_grid_map(world, region_name, player, symbols, fallback_symbols):
@@ -531,7 +732,7 @@ class UISystem:
                     if location == player.current_location:
                         symbol = symbols['player']
                     elif location.is_beacon:
-                        symbol = symbols['beacon']
+                        symbol = symbols['beacon_unlocked']
                     elif location.is_boss_area:
                         symbol = symbols['boss']
                     elif location.is_shop:

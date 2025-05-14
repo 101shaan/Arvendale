@@ -3,6 +3,9 @@ import random
 import json
 from config import DIVIDER
 
+# Import Player class from models_part2 to avoid circular imports
+from models_part2 import Player
+
 class Item:
     def __init__(self, id: str, name: str, description: str, item_type: str, value: int = 0, 
                  weight: float = 0.0, stats: Dict = None, usable: bool = False, 
@@ -32,6 +35,12 @@ class Item:
             heal_amount = self.stats["healing"]
             player.heal(heal_amount)
             result = f"You drink the {self.name} and recover {heal_amount} health."
+        
+        # Handle stamina elixir
+        elif self.item_type == "consumable" and hasattr(self, "effect_type") and self.effect_type == "stamina":
+            stamina_amount = self.effect_value
+            player.restore_stamina(stamina_amount)
+            result = f"You drink the {self.name} and recover {stamina_amount} stamina."
         
         # Example: Buff item
         elif self.item_type == "consumable" and "buff" in self.stats:

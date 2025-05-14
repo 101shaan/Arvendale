@@ -178,7 +178,7 @@ class GameEngine:
         print()
         print_centered("Created by Shaan")
         print()
-        print_centered("Inspired by Dark Souls and The Lord of the Rings")
+        print_centered("Based on Dark Souls 3")
         print()
         print_centered("Thank you for playing!")
         
@@ -323,16 +323,7 @@ class GameEngine:
         
         # Rest command
         elif action == "rest":
-            if self.player.current_location.is_beacon:
-                print_slow("You rest at the beacon. Your health and stamina are restored.")
-                self.player.rest()
-                self.player.last_beacon = self.player.current_location
-                # Autosave on rest
-                save_game(self.player, self.world, AUTOSAVE_FILE)
-                time.sleep(1)
-            else:
-                print_slow("There is no beacon to rest at in this location.")
-                time.sleep(1)
+            self.rest_at_beacon()
         
         # Save command
         elif action == "save":
@@ -817,6 +808,11 @@ class GameEngine:
         self.player.essence += essence
         print_slow(f"You gained {essence} essence.")
         
+        # Occasionally explain what essence is used for
+        if random.random() < 0.3 or self.player.essence >= 100 and not self.player.flags.get("essence_explained"):
+            print_slow("(Essence can be used at shops to purchase items and upgrades, and to restore your equipment.)")
+            self.player.flags["essence_explained"] = True
+        
         # Award items
         if items:
             print_slow("You obtained:")
@@ -827,12 +823,24 @@ class GameEngine:
                     print_slow(f"- Couldn't take {item.name} (inventory full)")
                     self.player.current_location.items.append(item)
         
-        # Award experience
-        exp_gain = enemy.health // 2
+        # Award experience - ensure positive experience gain
+        exp_gain = max(enemy.max_health // 2, enemy.level * 20 if hasattr(enemy, 'level') else 10)
         leveled = self.player.gain_experience(exp_gain)
         print_slow(f"You gained {exp_gain} experience.")
+        
+        # Occasionally explain what experience is used for if player hasn't leveled up yet
+        if random.random() < 0.3 and self.player.level == 1 and not self.player.flags.get("experience_explained"):
+            print_slow("(Experience points are used to level up. When you level up, you gain more health and stamina.)")
+            self.player.flags["experience_explained"] = True
+            
         if leveled:
             print_slow(f"You've reached level {self.player.level}!")
+        
+        # Check if this was a beacon protector
+        if enemy.id == "protector_illuminator" and self.player.current_location.is_beacon:
+            self.player.current_location.beacon_status = "unlocked"
+            print_slow("\n🔥 The beacon's guardian has fallen! The beacon is now available for your use.")
+            print_slow("You can now rest here to restore health and stamina, and teleport to this beacon from other beacons.")
         
         # Update quest progress
         self.quest_system.update_quest_progress(
@@ -959,6 +967,154 @@ class GameEngine:
             else:
                 print_slow("Invalid choice.")
                 time.sleep(1)
+
+    def rest_at_beacon(self):
+        """Rest at a beacon to restore health, stamina, and manage teleportation."""
+        current_location = self.player.current_location
+        
+        if not current_location.is_beacon:
+            print_slow("There is no beacon here to rest at.")
+            return
+        
+        # Check if this beacon is protected
+        if current_location.beacon_status == "protected":
+            # Spawn a protector if one isn't already present
+            protector_present = any(e.id == "protector_illuminator" for e in current_location.active_enemies)
+            
+            if not protector_present and not current_location.has_beacon_protector:
+                print_slow("\n🔥 As you approach the beacon, a guardian materializes to protect it!")
+                
+                # Create a scaled protector based on player level
+                protector_level = max(1, self.player.level)
+                health_scaling = int(80 + (protector_level * 20))
+                attack_scaling = int(10 + (protector_level * 2))
+                
+                protector = NPC(
+                    id="protector_illuminator",
+                    name="Protector Illuminator",
+                    description="A magical construct of light and flame that guards the beacon.",
+                    friendly=False,
+                    health=health_scaling,
+                    max_health=health_scaling,
+                    attack=attack_scaling,
+                    defense=protector_level * 3,
+                    level=protector_level,
+                    special_abilities=[
+                        {
+                            "name": "Flame Shield",
+                            "type": "status",
+                            "effect": "defense_up",
+                            "potency": 5,
+                            "duration": 3
+                        },
+                        {
+                            "name": "Light Burst",
+                            "type": "aoe_attack",
+                            "damage": protector_level * 10
+                        }
+                    ],
+                    loot={
+                        "essence_min": protector_level * 50,
+                        "essence_max": protector_level * 100
+                    }
+                )
+                
+                current_location.active_enemies.append(protector)
+                current_location.has_beacon_protector = True
+                
+                print_slow("You must defeat the Protector Illuminator to use this beacon!")
+                time.sleep(1)
+                
+                # Enter combat with the protector
+                self.enter_combat(protector)
+                return
+            elif protector_present:
+                print_slow("You must defeat the beacon's guardian before you can rest here.")
+                return
+        
+        # If we reached here, the beacon is available for use
+        clear_screen()
+        print(DIVIDER)
+        print_centered("BEACON REST")
+        print(DIVIDER)
+        
+        print_slow("You rest at the beacon. Your health and stamina are restored.")
+        self.player.rest()
+        
+        # Remember this beacon as the last one rested at
+        self.player.last_beacon = current_location
+        
+        print("\nWhat would you like to do?")
+        print("1. Continue resting")
+        print("2. Travel to another beacon")
+        print("3. Return to exploring")
+        
+        choice = input("> ").strip()
+        
+        if choice == "1":
+            # Continue resting (time-based events, etc.)
+            print_slow("You continue to rest at the beacon, enjoying its warmth...")
+            time.sleep(2)
+            print_slow("You feel rejuvenated.")
+        elif choice == "2":
+            # Travel to another beacon
+            self.beacon_travel()
+        
+        # For choice 3 or any other input, just return to exploration
+        
+    def beacon_travel(self):
+        """Travel between unlocked beacons."""
+        # Get all unlocked beacons
+        unlocked_beacons = []
+        for location_id, location in self.world.locations.items():
+            if location.is_beacon and location.beacon_status == "unlocked" and location in self.player.discovered_locations:
+                unlocked_beacons.append(location)
+        
+        if not unlocked_beacons:
+            print_slow("You haven't unlocked any other beacons to travel to yet.")
+            time.sleep(1.5)
+            return
+        
+        # Remove current location from travel options
+        unlocked_beacons = [b for b in unlocked_beacons if b.id != self.player.current_location.id]
+        
+        if not unlocked_beacons:
+            print_slow("There are no other beacons available to travel to from here.")
+            time.sleep(1.5)
+            return
+        
+        clear_screen()
+        print(DIVIDER)
+        print_centered("BEACON TRAVEL")
+        print(DIVIDER)
+        
+        print_slow("Select a beacon to travel to:")
+        for i, beacon in enumerate(unlocked_beacons, 1):
+            print(f"{i}. {beacon.name} ({beacon.region})")
+        print(f"{len(unlocked_beacons) + 1}. Cancel")
+        
+        choice = input("> ").strip()
+        
+        try:
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(unlocked_beacons):
+                destination = unlocked_beacons[choice_idx]
+                print_slow(f"You channel the beacon's power to travel to {destination.name}...")
+                time.sleep(1.5)
+                
+                # Move the player to the new location
+                self.player.previous_location = self.player.current_location
+                self.player.current_location = destination
+                
+                # Display arrival message
+                print_slow(f"You arrive at {destination.name}.")
+                time.sleep(1)
+                
+                return True
+        except (ValueError, IndexError):
+            pass
+        
+        return False
 
 # Run the game if executed directly
 if __name__ == "__main__":

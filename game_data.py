@@ -216,30 +216,56 @@ def initialize_npcs(world):
             "greeting": {
                 "text": "Welcome to my forge, traveler. Need something smithed or repaired?",
                 "responses": {
-                    "smith": {"text": "Can you forge me a weapon?"},
-                    "repair": {"text": "I need something repaired."},
-                    "quest": {"text": "I'm looking for work."},
-                    "farewell": {"text": "Just looking around. Farewell."}
+                    "smith": {
+                        "text": "Can you forge me a weapon?",
+                        "response_text": "I could forge you something special if you bring me the right materials. I need ember essence from the Ashen Woods.",
+                        "next": "smith_options"
+                    },
+                    "repair": {
+                        "text": "I need something repaired.",
+                        "response_text": "Let me see what you've got. Hmm, I can fix this for 50 essence.",
+                        "next": "repair_options"
+                    },
+                    "quest": {
+                        "text": "I'm looking for work.",
+                        "next": "quest"
+                    },
+                    "farewell": {
+                        "text": "Just looking around. Farewell.",
+                        "response_text": "Come back when you need something forged."
+                    }
                 }
             },
-            "smith": {
+            "smith_options": {
                 "text": "I could forge you something special if you bring me the right materials. I need ember essence from the Ashen Woods.",
                 "responses": {
                     "accept_quest": {
                         "text": "I'll find this ember essence for you.",
-                        "start_quest": "ember_quest"
+                        "response_text": "Excellent! The Ashen Woods are to the northeast. Be careful, the forest guardians are fierce protectors.",
+                        "start_quest": "ember_quest",
+                        "next": "greeting"
                     },
-                    "reject": {"text": "Maybe another time."}
-                },
-                "next": "greeting"
+                    "reject": {
+                        "text": "Maybe another time.",
+                        "response_text": "As you wish. The offer stands if you change your mind.",
+                        "next": "greeting"
+                    }
+                }
             },
-            "repair": {
+            "repair_options": {
                 "text": "Let me see what you've got. Hmm, I can fix this for 50 essence.",
                 "responses": {
-                    "accept_repair": {"text": "Please repair it."},
-                    "reject": {"text": "That's too expensive."}
-                },
-                "next": "greeting"
+                    "accept_repair": {
+                        "text": "Please repair it.",
+                        "response_text": "Good as new! Your equipment should serve you well now.",
+                        "next": "greeting"
+                    },
+                    "reject": {
+                        "text": "That's too expensive.",
+                        "response_text": "That's my price. Quality work doesn't come cheap.",
+                        "next": "greeting"
+                    }
+                }
             },
             "quest": {
                 "condition": {
@@ -255,11 +281,16 @@ def initialize_npcs(world):
                     "responses": {
                         "accept": {
                             "text": "I'll find this ember essence for you.",
-                            "start_quest": "ember_quest"
+                            "response_text": "Excellent! The Ashen Woods are to the northeast. Be careful, the forest guardians are fierce protectors.",
+                            "start_quest": "ember_quest",
+                            "next": "greeting"
                         },
-                        "reject": {"text": "Maybe another time."}
-                    },
-                    "next": "greeting"
+                        "reject": {
+                            "text": "Maybe another time.",
+                            "response_text": "As you wish. The offer stands if you change your mind.",
+                            "next": "greeting"
+                        }
+                    }
                 }
             }
         },
@@ -282,10 +313,44 @@ def initialize_npcs(world):
             "greeting": {
                 "text": "Ah, a customer! What can Ulrich provide for you today?",
                 "responses": {
-                    "buy": {"text": "Show me your wares."},
-                    "sell": {"text": "I have items to sell."},
-                    "quest": {"text": "Is there anything you need help with?"},
-                    "farewell": {"text": "Just passing by. Farewell."}
+                    "buy": {
+                        "text": "Show me your wares.",
+                        "response_text": "Take a look at my fine collection. Only the best for my customers!",
+                        "next": "shop"
+                    },
+                    "sell": {
+                        "text": "I have items to sell.",
+                        "response_text": "Let's see what treasures you've found. I'll give you a fair price... mostly.",
+                        "next": "shop"
+                    },
+                    "quest": {
+                        "text": "Is there anything you need help with?",
+                        "next": "quest"
+                    },
+                    "farewell": {
+                        "text": "Just passing by. Farewell.",
+                        "response_text": "Safe travels! Remember, Ulrich always has the finest goods when you return."
+                    }
+                }
+            },
+            "shop": {
+                "text": "Here's what I have for sale today. Quality goods at reasonable prices!",
+                "responses": {
+                    "buy_item": {
+                        "text": "I'll take this.",
+                        "response_text": "Excellent choice! This will serve you well.",
+                        "next": "greeting"
+                    },
+                    "haggle": {
+                        "text": "Your prices are too high.",
+                        "response_text": "My friend, these items are worth every essence! But perhaps we can negotiate...",
+                        "next": "greeting"
+                    },
+                    "back": {
+                        "text": "Let me think about it.",
+                        "response_text": "Take your time. Quality merchandise is worth careful consideration.",
+                        "next": "greeting"
+                    }
                 }
             },
             "quest": {
@@ -302,11 +367,16 @@ def initialize_npcs(world):
                     "responses": {
                         "accept": {
                             "text": "I'll look for your ring.",
-                            "start_quest": "signet_quest"
+                            "response_text": "Splendid! The ring has a blue gemstone with my family crest. Last I had it was near the old watchtower in the marshes.",
+                            "start_quest": "signet_quest",
+                            "next": "greeting"
                         },
-                        "reject": {"text": "I don't have time for that."}
-                    },
-                    "next": "greeting"
+                        "reject": {
+                            "text": "I don't have time for that.",
+                            "response_text": "Unfortunate, but I understand. The marshes are dangerous. Perhaps another time.",
+                            "next": "greeting"
+                        }
+                    }
                 }
             }
         },
@@ -474,7 +544,7 @@ def initialize_locations(world):
             /  \\
            /    \\
           /      \\
-         /   🔥   \\
+         /   ^   \\
         /__________\\
         |  SHRINE  |
         |__________|
@@ -492,7 +562,8 @@ def initialize_locations(world):
             "north": "undead_settlement",
             "east": "lothric_castle"
         },
-        enemies=["hollow_soldier"]
+        enemies=["hollow_soldier"],
+        is_beacon=True
     )
     world.add_location(high_wall)
     
@@ -505,7 +576,8 @@ def initialize_locations(world):
             "west": "firelink_shrine",
             "north": "cathedral"
         },
-        enemies=["hollow_soldier"]
+        enemies=["hollow_soldier"],
+        is_beacon=True
     )
     world.add_location(cemetery)
     
@@ -520,7 +592,8 @@ def initialize_locations(world):
             "west": "blighted_marshes"
         },
         npcs=["merchant_ulrich"],
-        is_shop=True
+        is_shop=True,
+        is_beacon=True
     )
     world.add_location(undead_settlement)
     
@@ -533,7 +606,8 @@ def initialize_locations(world):
             "south": "cemetery",
             "west": "road_of_sacrifices"
         },
-        enemies=["hollow_soldier"]
+        enemies=["hollow_soldier"],
+        is_beacon=True
     )
     world.add_location(cathedral)
     
@@ -547,7 +621,8 @@ def initialize_locations(world):
             "east": "cathedral",
             "north": "farron_keep"
         },
-        enemies=["hollow_soldier"]
+        enemies=["hollow_soldier"],
+        is_beacon=True
     )
     world.add_location(road_of_sacrifices)
     
@@ -560,7 +635,8 @@ def initialize_locations(world):
             "east": "undead_settlement"
         },
         enemies=["hollow_soldier"],
-        items=[world.get_item_by_id("blue_signet")]
+        items=[world.get_item_by_id("blue_signet")],
+        is_beacon=True
     )
     world.add_location(blighted_marshes)
     
@@ -588,7 +664,8 @@ def initialize_locations(world):
             "north": "ashen_lord_arena"
         },
         enemies=["forest_guardian"],
-        items=[world.get_item_by_id("ember_essence")]
+        items=[world.get_item_by_id("ember_essence")],
+        is_beacon=True
     )
     world.add_location(ashen_woods)
     
@@ -615,7 +692,8 @@ def initialize_locations(world):
             "north": "vordt_arena"
         },
         enemies=["hollow_soldier"],
-        visit_requirement={"quest_complete": "frost_guardian"}
+        visit_requirement={"quest_complete": "frost_guardian"},
+        is_beacon=True
     )
     world.add_location(lothric_castle)
     
@@ -657,7 +735,8 @@ def initialize_locations(world):
             "south": "irithyll",
             "east": "kings_chamber"
         },
-        enemies=["hollow_soldier"]
+        enemies=["hollow_soldier"],
+        is_beacon=True
     )
     world.add_location(anor_londo)
     
@@ -798,149 +877,192 @@ def create_player(name: str) -> Player:
 
 def initialize_maps(world):
     """Initialize ASCII art maps for all regions in the game."""
-    # Define the Firelink Shrine region map
+    # Define the Shrine Grounds region map
     firelink_map = """
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                             ┃
-    ┃    Undead Asylum            ┃
-    ┃         □                   ┃
-    ┃                             ┃
-    ┃              High Wall      ┃
-    ┃              of Lothric     ┃
-    ┃                 □           ┃
-    ┃                 ┃           ┃
-    ┃    Cemetery     ┃           ┃
-    ┃    of Ash       ┃           ┃
-    ┃      □━━━━━━━━━━╋━━━━━━━━━━━┫
-    ┃      ┃          ┃           ┃
-    ┃      ┃  FIRELINK SHRINE     ┃
-    ┃ Bell ┃      🔥              ┃
-    ┃ Tower┃          ┃           ┃
-    ┃   □━━╋━━━━━━━━━━┛           ┃
-    ┃      ┃                      ┃
-    ┃      ┃                      ┃
-    ┃  New ┃Londo                 ┃
-    ┃  Ruins□                     ┃
-    ┃                             ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-    """
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                         ┃
+┃       Undead Asylum                     ┃
+┃            □                            ┃
+┃            ┃                            ┃
+┃            ┃                            ┃
+┃            ┃                            ┃
+┃            ┃         High Wall          ┃
+┃            ┗━━━━━━━━━□━━━━━━━━━━━━┓     ┃
+┃                      ┃            ┃     ┃
+┃                      ┃            ┃     ┃
+┃      Cemetery        ┃            ┃     ┃
+┃      of Ash          ┃            ┃     ┃
+┃         □━━━━━━━━━━━━╋━━━━━━━━━━━━┫     ┃
+┃         ┃            ┃            ┃     ┃
+┃         ┃     FIRELINK SHRINE     ┃     ┃
+┃    Bell ┃           □             ┃     ┃
+┃    Tower┃           ┃             ┃     ┃
+┃      □━━╋━━━━━━━━━━━┛             ┃     ┃
+┃         ┃                         ┃     ┃
+┃         ┃                         ┃     ┃
+┃     New Londo                     ┃     ┃
+┃     Ruins □                       ┃     ┃
+┃                                   ┃     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━┛
+"""
     
     # Define the Ashen Woods region map
     ashen_woods_map = """
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                             ┃
-    ┃   Ancient                   ┃
-    ┃   Temple        Giant's     ┃
-    ┃     □           Clearing    ┃
-    ┃     ┃              □        ┃
-    ┃     ┃              ┃        ┃
-    ┃     ┃              ┃        ┃
-    ┃  Witch's          ┃         ┃
-    ┃  Cottage          ┃         ┃
-    ┃     □━━━━━━━━━━━━━┛         ┃
-    ┃     ┃                       ┃
-    ┃     ┃                       ┃
-    ┃     ┃       Ember           ┃
-    ┃  Forgotten      Basin       ┃
-    ┃  Graves   □━━━━━━□          ┃
-    ┃     □━━━━━┛                 ┃
-    ┃     ┃                       ┃
-    ┃     ┃                       ┃
-    ┃   Ashen Grove               ┃
-    ┃     🔥                       ┃
-    ┃                             ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-    """
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                         ┃
+┃      Ashen Lord Arena                   ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃     Witch's             Giant's         ┃
+┃     Cottage             Clearing        ┃
+┃        □━━━━━━━━━━━━━━━━□               ┃
+┃        ┃                ┃               ┃
+┃        ┃                ┃               ┃
+┃        ┃                ┃               ┃
+┃        ┃      Ashen     ┃               ┃
+┃     Forgotten         Woods             ┃
+┃     Graves  □━━━━━━━━━━□                ┃
+┃        □━━━━┛                           ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃      Farron Keep                        ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┗━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+"""
     
-    # Define the Frozen Lake region map
-    frozen_lake_map = """
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                             ┃
-    ┃   Ice Castle                ┃
-    ┃     👑                       ┃
-    ┃     ┃                       ┃
-    ┃     ┃                       ┃
-    ┃     ┃                       ┃
-    ┃  Glacier       Frozen       ┃
-    ┃  Pass          Waterfall    ┃
-    ┃   □━━━━━━━━━━━━━□           ┃
-    ┃   ┃             ┃           ┃
-    ┃   ┃             ┃           ┃
-    ┃   ┃             ┃           ┃
-    ┃   ┃             ┃           ┃
-    ┃   ┃  Crystal    ┃           ┃
-    ┃   ┃   Cave      ┃           ┃
-    ┃   ┃    □━━━━━━━━┛           ┃
-    ┃   ┃    ┃                    ┃
-    ┃   ┃    ┃                    ┃
-    ┃  Frozen Lake                ┃
-    ┃     🔥                       ┃
-    ┃                             ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-    """
+    # Define the Northern Realm region map
+    northern_realm_map = """
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                         ┃
+┃      King's Chamber                     ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃     Anor Londo                          ┃
+┃        □━━━━━━━━━━                      ┃
+┃        ┃          ┃                     ┃
+┃        ┃          ┃                     ┃
+┃        ┃          ┃                     ┃
+┃        ┃          ┃                     ┃
+┃        ┃          ┃                     ┃
+┃        ┃      Irithyll                  ┃
+┃        ┣━━━━━━━━━□                      ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃     Vordt's Chamber                     ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃     Lothric Castle                      ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┗━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+"""
     
-    # Define the Catacombs region map
-    catacombs_map = """
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                             ┃
-    ┃   Abandoned       Chamber   ┃
-    ┃   Tomb            of Souls  ┃
-    ┃     □━━━━━━━━━━━━━━□        ┃
-    ┃     ┃             ┃         ┃
-    ┃     ┃             ┃         ┃
-    ┃     ┃             ┃         ┃
-    ┃  Bone             ┃         ┃
-    ┃  Pit              ┃         ┃
-    ┃   □━━━━━━━━━━━━━━━┛         ┃
-    ┃   ┃                         ┃
-    ┃   ┃                         ┃
-    ┃   ┃    Ancient              ┃
-    ┃   ┃    Crypt                ┃
-    ┃   ┃      □                  ┃
-    ┃   ┃      ┃                  ┃
-    ┃   ┃      ┃                  ┃
-    ┃   ┃      ┃                  ┃
-    ┃  Catacombs Entrance         ┃
-    ┃     🔥                       ┃
-    ┃                             ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-    """
+    # Define the Outer Lands region map
+    outer_lands_map = """
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                         ┃
+┃      Farron Keep                        ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃        ┃       ≈≈≈≈≈≈≈≈≈≈≈≈             ┃
+┃        ┃       ≈         ≈              ┃
+┃        ┃       ≈         ≈              ┃
+┃        ┃       ≈         ≈              ┃
+┃        ┃       ≈≈≈≈≈≈≈≈≈≈               ┃
+┃        ┃                                ┃
+┃     Blighted            Cathedral       ┃
+┃     Marshes             of the Deep     ┃
+┃        □━━━━━━━━━━━━━━━━□               ┃
+┃                  ┃      ┃               ┃
+┃                  ┃      ┃               ┃
+┃            Road of      ┃               ┃
+┃            Sacrifices   ┃               ┃
+┃                  □━━━━━━┛               ┃
+┃                  ┃                      ┃
+┃                  ┃                      ┃
+┃      Undead Settlement                  ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┃        ┃                                ┃
+┃     High Wall of Lothric                ┃
+┃        □                                ┃
+┃        ┃                                ┃
+┗━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+"""
     
     # Define the world map
     world_map = """
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                                                                 ┃
-    ┃                          FROZEN LAKE                            ┃
-    ┃                              □                                  ┃
-    ┃                              ┃                                  ┃
-    ┃                              ┃                                  ┃
-    ┃                              ┃                                  ┃
-    ┃                              ┃                                  ┃
-    ┃               ASHEN WOODS    ┃                                  ┃
-    ┃                   □━━━━━━━━━━┛                                  ┃
-    ┃                   ┃                                             ┃
-    ┃                   ┃                                             ┃
-    ┃                   ┃                         SUNKEN CITY         ┃
-    ┃  FIRELINK SHRINE  ┃                             □               ┃
-    ┃        🔥━━━━━━━━━━┫                             ┃               ┃
-    ┃        ┃          ┃                             ┃               ┃
-    ┃        ┃          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛               ┃
-    ┃        ┃                                                        ┃
-    ┃        ┃                                                        ┃
-    ┃        ┗━━━━━━━━━━━━━━━━━━━━━┓                                  ┃
-    ┃                               ┃                                  ┃
-    ┃                               ┃                                  ┃
-    ┃                          CATACOMBS                              ┃
-    ┃                               □                                  ┃
-    ┃                                                                 ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-    """
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                           ┃
+┃                            NORTHERN REALM                                 ┃
+┃                             King's Chamber                                ┃
+┃                                  □                                        ┃
+┃                                  │                                        ┃
+┃                              Anor Londo                                   ┃
+┃                                  □                                        ┃
+┃                                  │                                        ┃
+┃                               Irithyll                                    ┃
+┃                                  □                                        ┃
+┃                                  │                                        ┃
+┃                             Vordt's Chamber                               ┃
+┃                                  □                                        ┃
+┃                                  │                                        ┃
+┃                             Lothric Castle                                ┃
+┃                                  □                                        ┃
+┃                                  │                                        ┃
+┃                    ┏━━━━━━━━━━━━━┻━━━━━━━━━━━━━━┓                        ┃
+┃                    │                            │                        ┃
+┃                    │                            │                        ┃
+┃                ASHEN WOODS                  OUTER LANDS                  ┃
+┃                 Ashen Lord                    Farron Keep                ┃
+┃                     □                             □                       ┃
+┃                     │                             │                       ┃
+┃                 Ashen Woods                       │                       ┃
+┃                     □                             │                       ┃
+┃                     │                             │                       ┃
+┃                 Farron Keep                       ┣━━━━━━━┓               ┃
+┃                     □━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛       │               ┃
+┃                                                           │               ┃
+┃                                                     Cathedral             ┃
+┃                                                       □                   ┃
+┃                                                       │                   ┃
+┃                                                       │                   ┃
+┃                                   Road of             │                   ┃
+┃                  Blighted         Sacrifices          │                   ┃
+┃                  Marshes              □━━━━━━━━━━━━━━━┛                   ┃
+┃                     □━━━━━━━━━━━━━━━━━┛                                   ┃
+┃                                       │                                   ┃
+┃                               Undead Settlement                          ┃
+┃                                     □                                    ┃
+┃                                     │                                    ┃
+┃                               High Wall                                  ┃
+┃                                     □                                    ┃
+┃                            ┏━━━━━━━━┻━━━━━━━━━┓                          ┃
+┃                    Cemetery │                 │                          ┃
+┃                        □━━━━┛                 │                          ┃
+┃                                               │                          ┃
+┃                             FIRELINK SHRINE   │                          ┃
+┃                                   □           │                          ┃
+┃                                   SHRINE GROUNDS                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+"""
     
     # Add maps to the world
     world.region_maps = {
-        'Firelink Shrine': firelink_map,
+        'Shrine Grounds': firelink_map,
         'Ashen Woods': ashen_woods_map,
-        'Frozen Lake': frozen_lake_map,
-        'Catacombs': catacombs_map,
+        'Northern Realm': northern_realm_map,
+        'Outer Lands': outer_lands_map,
         'world': world_map
     } 

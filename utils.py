@@ -103,7 +103,8 @@ def load_game(filename: str) -> Tuple[Any, Any]:
         print("Warning: Save file version mismatch. Some features may not work correctly.")
     
     # These will be imported at runtime to avoid circular imports
-    from models import Player, World
+    from models_part2 import Player
+    from models_part3 import World
     
     player = Player.from_dict(save_data["player"])
     world = World.from_dict(save_data["world"])
@@ -124,12 +125,14 @@ def get_save_info(filename: str) -> Dict:
         with open(filename, "rb") as f:
             save_data = pickle.load(f)
         
+        player_data = save_data.get("player", {})
+        
         return {
-            "player_name": save_data["player"]["name"],
-            "player_level": save_data["player"]["level"],
-            "location": save_data["player"]["current_location"],
-            "timestamp": save_data["timestamp"],
-            "version": save_data["version"]
+            "player_name": player_data.get("name", "Unknown"),
+            "player_level": player_data.get("level", 1),
+            "location": player_data.get("current_location", "Unknown"),
+            "timestamp": save_data.get("timestamp", "Unknown date"),
+            "version": save_data.get("version", "Unknown version")
         }
     except Exception as e:
         return {

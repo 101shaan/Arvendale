@@ -229,26 +229,28 @@ class NPC:
     def __init__(self, id: str, name: str, description: str, friendly: bool = True,
                  dialogue: Dict = None, quest_giver: bool = False,
                  merchant: bool = False, inventory: Dict = None,
-                 health: int = 100, attack: int = 10, defense: int = 5,
+                 health: int = 100, max_health: int = None, 
+                 attack: int = 10, defense: int = 5,
                  special_abilities: List = None, loot: Dict = None,
-                 faction: str = None):
+                 faction: str = None, level: int = 1):
         self.id = id
         self.name = name
         self.description = description
         self.friendly = friendly
-        self.dialogue = dialogue or {"greeting": f"Hello, traveler."}
+        self.dialogue = dialogue or {}
         self.quest_giver = quest_giver
         self.merchant = merchant
         self.inventory = inventory or {}
         self.health = health
-        self.max_health = health
+        self.max_health = max_health if max_health is not None else health
         self.attack = attack
         self.defense = defense
         self.special_abilities = special_abilities or []
         self.loot = loot or {}
         self.faction = faction
-        self.current_dialogue = "greeting"
-        self.flags = {}  # NPC-specific flags
+        self.current_dialogue = None  # Current dialogue node
+        self.flags = {}  # Store NPC-specific flags
+        self.level = level  # Enemy level for scaling
     
     def talk(self, player, player_choice_id: str = None) -> Tuple[str, Dict]:
         npc_utterance: str
@@ -278,8 +280,17 @@ class NPC:
                     print_slow(f"Quest started: {quest_id_to_start}")
 
 
-                # The NPC's text for THIS turn is the "text" field of the CHOSEN OPTION.
-                npc_utterance = data_for_chosen_option.get("text", f"{self.name} acknowledges your choice.")
+                # Get the NPC's response to the player's choice
+                if "response_text" in data_for_chosen_option:
+                    # Use dedicated response text if available
+                    npc_utterance = data_for_chosen_option["response_text"]
+                elif "next" in data_for_chosen_option:
+                    # If no response text but there's a next node, use that node's text
+                    next_node = self.dialogue.get(data_for_chosen_option["next"], {})
+                    npc_utterance = next_node.get("text", f"{self.name} acknowledges your choice.")
+                else:
+                    # Fallback to a generic response
+                    npc_utterance = f"{self.name} acknowledges your choice."
                 
                 # The NEW dialogue state for the NPC is from the "next" field of the CHOSEN OPTION.
                 # If "next" is missing, current_dialogue remains the same.
@@ -444,14 +455,15 @@ class NPC:
             merchant=data["merchant"],
             inventory=data["inventory"],
             health=data["health"],
+            max_health=data["max_health"],
             attack=data["attack"],
             defense=data["defense"],
             special_abilities=data["special_abilities"],
             loot=data["loot"],
-            faction=data["faction"]
+            faction=data["faction"],
+            level=data["level"]
         )
         
-        npc.max_health = data["max_health"]
         npc.current_dialogue = data["current_dialogue"]
         npc.flags = data["flags"].copy()
         
@@ -479,6 +491,8 @@ class Location:
         self.ascii_art = ascii_art
         self.dropped_essence = 0  # Player's dropped essence
         self.dropped_essence_time = None  # When essence was dropped
+        self.beacon_status = "protected" if is_beacon else None  # Values: "protected", "unlocked", None
+        self.has_beacon_protector = False  # Whether the protector has been spawned
     
     def can_visit(self, player) -> Tuple[bool, str]:
         """Check if player can visit this location."""
@@ -562,7 +576,9 @@ class Location:
             "visit_requirement": self.visit_requirement,
             "ascii_art": self.ascii_art,
             "dropped_essence": self.dropped_essence,
-            "dropped_essence_time": self.dropped_essence_time
+            "dropped_essence_time": self.dropped_essence_time,
+            "beacon_status": self.beacon_status,
+            "has_beacon_protector": self.has_beacon_protector
         }
     
     @classmethod
@@ -597,5 +613,11 @@ class Location:
         
         location.dropped_essence = data["dropped_essence"]
         location.dropped_essence_time = data["dropped_essence_time"]
+        
+        # Add beacon status attributes
+        if "beacon_status" in data:
+            location.beacon_status = data["beacon_status"]
+        if "has_beacon_protector" in data:
+            location.has_beacon_protector = data["has_beacon_protector"]
         
         return location 
