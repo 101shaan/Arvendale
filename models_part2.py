@@ -248,13 +248,25 @@ class NPC:
         self.special_abilities = special_abilities or []
         self.loot = loot or {}
         self.faction = faction
-        self.current_dialogue = None  # Current dialogue node
+        
+        # Set default dialogue node - use "greeting" if it exists, otherwise use the first dialogue node available
+        if dialogue and "greeting" in dialogue:
+            self.current_dialogue = "greeting"
+        elif dialogue and len(dialogue) > 0:
+            self.current_dialogue = next(iter(dialogue))
+        else:
+            self.current_dialogue = None  # No dialogue available
+            
         self.flags = {}  # Store NPC-specific flags
         self.level = level  # Enemy level for scaling
     
     def talk(self, player, player_choice_id: str = None) -> Tuple[str, Dict]:
+        """Handle NPC dialogue based on player choices and conditions."""
         npc_utterance: str
         options_for_player: Dict[str, str] = {}
+
+        # Initialize with a more helpful default response rather than "..."
+        default_response = f"Greetings, traveler. I am {self.name}."
 
         if player_choice_id:  # Player made a choice
             node_player_was_responding_to = self.dialogue.get(self.current_dialogue, {})  # Node that offered choices
@@ -287,17 +299,17 @@ class NPC:
                 elif "next" in data_for_chosen_option:
                     # If no response text but there's a next node, use that node's text
                     next_node = self.dialogue.get(data_for_chosen_option["next"], {})
-                    npc_utterance = next_node.get("text", f"{self.name} acknowledges your choice.")
+                    npc_utterance = next_node.get("text", default_response)
                 else:
-                    # Fallback to a generic response
-                    npc_utterance = f"{self.name} acknowledges your choice."
+                    # Fallback to a more personalized generic response
+                    npc_utterance = f"I understand, {player.name}. Is there anything else you'd like to know?"
                 
                 # The NEW dialogue state for the NPC is from the "next" field of the CHOSEN OPTION.
                 # If "next" is missing, current_dialogue remains the same.
                 self.current_dialogue = data_for_chosen_option.get("next", self.current_dialogue)
             else:
-                # Invalid player choice for current node. NPC gets confused. State doesn't change.
-                current_node_text = self.dialogue.get(self.current_dialogue, {}).get("text", f"{self.name} is confused.")
+                # Invalid player choice for current node. NPC gets confused but still says something.
+                current_node_text = self.dialogue.get(self.current_dialogue, {}).get("text", default_response)
                 npc_utterance = current_node_text
         else:  # player_choice_id is None (initial call for a dialogue node)
             current_node_data = self.dialogue.get(self.current_dialogue, {})
@@ -320,10 +332,10 @@ class NPC:
                     if has_item: branch = "success"
                 
                 branch_data = current_node_data.get(branch, {})
-                npc_utterance = branch_data.get("text", "...")
+                npc_utterance = branch_data.get("text", default_response)
                 self.current_dialogue = branch_data.get("next", self.current_dialogue)  # Update from conditional branch
             else:  # No condition in current node
-                npc_utterance = current_node_data.get("text", "...")
+                npc_utterance = current_node_data.get("text", default_response)
                 # A non-conditional node's "next" should be handled by player choices, not auto-advance here.
 
         # Fetch response options for the player for the (potentially updated) self.current_dialogue state.
@@ -464,7 +476,14 @@ class NPC:
             level=data["level"]
         )
         
-        npc.current_dialogue = data["current_dialogue"]
+        # Restore the NPC's dialogue state, or set appropriate default if missing or invalid
+        if "current_dialogue" in data and data["current_dialogue"] and data["current_dialogue"] in data["dialogue"]:
+            npc.current_dialogue = data["current_dialogue"]
+        elif npc.current_dialogue is None and data["dialogue"] and "greeting" in data["dialogue"]:
+            npc.current_dialogue = "greeting"
+        elif npc.current_dialogue is None and data["dialogue"] and len(data["dialogue"]) > 0:
+            npc.current_dialogue = next(iter(data["dialogue"]))
+        
         npc.flags = data["flags"].copy()
         
         return npc

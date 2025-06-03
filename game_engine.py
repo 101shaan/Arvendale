@@ -792,8 +792,10 @@ class GameEngine:
                     time.sleep(0.5)
                 
                 # Check if flee was successful
-                if "successfully flee" in messages[-1]:
-                    return
+                if any("successfully flee" in message.lower() for message in messages):
+                    print_slow("You escaped from combat!")
+                    time.sleep(1)
+                    return  # Exit combat immediately on successful flee
             
             input("Press Enter to continue...")
     
@@ -1040,6 +1042,18 @@ class GameEngine:
         
         print_slow("You rest at the beacon. Your health and stamina are restored.")
         self.player.rest()
+        
+        # Replenish estus and stamina flasks
+        for item in self.player.inventory.items:
+            # Replenish estus flask (healing potion)
+            if item.id == "estus_flask" or (hasattr(item, "effect_type") and item.effect_type == "heal" and "flask" in item.name.lower()):
+                item.quantity = 3  # Standard number of charges for estus flask
+                print_slow("Your Estus Flask is replenished.")
+            
+            # Replenish stamina flask (stamina elixir)
+            if item.id == "stamina_elixir" or (hasattr(item, "effect_type") and item.effect_type == "stamina" and "flask" in item.name.lower()):
+                item.quantity = 3  # Standard number of charges
+                print_slow("Your Stamina Flask is replenished.")
         
         # Remember this beacon as the last one rested at
         self.player.last_beacon = current_location
